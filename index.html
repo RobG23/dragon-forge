@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dragon Forge — Fractal Curve Game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0706;
+      --panel: #16100d;
+      --ink: #f3e6d4;
+      --muted: #b89a7a;
+      --ember: #ff6a2a;
+      --gold: #e8b84a;
+      --line: #3a2a22;
+      --good: #6fd08c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--ink); font-family: "Source Sans 3", system-ui, sans-serif; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(1200px 600px at 20% -10%, #3a1408 0%, transparent 55%),
+        radial-gradient(900px 500px at 110% 110%, #1a0c20 0%, transparent 50%),
+        var(--bg);
+    }
+    #app { display: grid; grid-template-columns: 320px 1fr; height: 100%; }
+    aside {
+      background: linear-gradient(180deg, #1a120e 0%, #100c0a 100%);
+      border-right: 1px solid var(--line);
+      padding: 18px 16px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    h1 {
+      font-family: Cinzel, serif;
+      font-size: 1.35rem;
+      letter-spacing: 0.08em;
+      color: var(--gold);
+      line-height: 1.2;
+    }
+    .sub { color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
+    label { display: block; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    select, input[type="range"], button, input[type="number"] {
+      width: 100%;
+      background: #221814;
+      color: var(--ink);
+      border: 1px solid #4a3228;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+    }
+    select:focus, button:focus { outline: 1px solid var(--ember); }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    button {
+      cursor: pointer;
+      background: linear-gradient(180deg, #3a2218, #2a1610);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    button.primary {
+      background: linear-gradient(180deg, #c24a1c, #8a280e);
+      border-color: #e06a30;
+      color: #fff8f0;
+    }
+    button.ghost { background: transparent; }
+    button:hover { filter: brightness(1.12); }
+    button:disabled { opacity: 0.45; cursor: default; filter: none; }
+    .stat {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 8px 10px; background: #1a120f; border: 1px solid var(--line); border-radius: 8px;
+    }
+    .stat b { font-family: Cinzel, serif; color: var(--gold); }
+    .hint { font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+    .divider { height: 1px; background: var(--line); margin: 2px 0; }
+    main { position: relative; min-width: 0; }
+    canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    canvas.dragging { cursor: grabbing; }
+    #hud {
+      position: absolute; left: 16px; bottom: 16px;
+      background: rgba(12,8,7,0.72); backdrop-filter: blur(8px);
+      border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+      font-size: 0.78rem; color: var(--muted); pointer-events: none;
+    }
+    #toast {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      background: #2a160e; border: 1px solid var(--ember); color: var(--ink);
+      padding: 8px 14px; border-radius: 999px; font-size: 0.85rem;
+      opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+    .badge {
+      display: inline-block; background: #3a2014; color: var(--gold);
+      border-radius: 999px; padding: 1px 8px; font-size: 0.7rem; margin-left: 6px;
+    }
+    @media (max-width: 800px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      aside { max-height: 46vh; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside>
+      <div>
+        <h1>Dragon Forge</h1>
+        <div class="sub">One-player fractal hatchery. Fold the curve. Tame the beast.</div>
+      </div>
+
+      <div>
+        <label>Species</label>
+        <select id="species"></select>
+      </div>
+
+      <div>
+        <label>Generation <span id="genLabel">8</span></label>
+        <input id="gen" type="range" min="0" max="16" value="8" />
+      </div>
+
+      <div>
+        <label>Turn angle <span id="angleLabel">90°</span></label>
+        <input id="angle" type="range" min="15" max="175" value="90" />
+      </div>
+
+      <div>
+        <label>Ink</label>
+        <select id="palette">
+          <option value="ember">Ember fire</option>
+          <option value="gold">Molten gold</option>
+          <option value="rainbow">Scale rainbow</option>
+          <option value="ice">Frost wyrm</option>
+          <option value="void">Void ink</option>
+          <option value="generation">By fold age</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Thickness</label>
+          <input id="thick" type="range" min="0.4" max="6" step="0.1" value="1.6" />
+        </div>
+        <div>
+          <label>Glow</label>
+          <input id="glow" type="range" min="0" max="18" step="1" value="6" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="primary" id="foldBtn">Fold +</button>
+        <button id="hatchBtn">Hatch animate</button>
+      </div>
+      <div class="row">
+        <button id="unfoldBtn">Unfold −</button>
+        <button id="resetView">Recenter</button>
+      </div>
+      <div class="row">
+        <button id="mirrorBtn">Mirror</button>
+        <button id="saveBtn">Save PNG</button>
+      </div>
+
+      <div class="divider"></div>
+      <div class="stat"><span>Segments</span><b id="segStat">—</b></div>
+      <div class="stat"><span>Best hatch</span><b id="bestStat">0</b></div>
+      <div class="stat"><span>Forge score</span><b id="scoreStat">0</b></div>
+
+      <p class="hint">
+        Drag to pan. Scroll to zoom. Each fold doubles the spine.
+        Classic Heighway uses 90°. Terdragon lives at 120°.
+        Custom angles spawn mutant wyrms.
+      </p>
+    </aside>
+    <main>
+      <canvas id="c"></canvas>
+      <div id="hud">gen 8 · Heighway Dragon</div>
+      <div id="toast"></div>
+    </main>
+  </div>
+
+<script>
+const SPECIES = {
+  heighway: {
+    name: "Heighway Dragon",
+    axiom: "FX",
+    rules: { X: "X+YF+", Y: "-FX-Y" },
+    angle: 90,
+    draw: "F",
+    maxGen: 16,
+    blurb: "The Jurassic Park dragon. Paper-fold classic."
+  },
+  heighwayL: {
+    name: "Heighway (left-handed)",
+    axiom: "FX",
+    rules: { X: "X-YF-", Y: "+FX+Y" },
+    angle: 90,
+    draw: "F",
+    maxGen: 16,
+    blurb: "Mirror twin of the classic fold."
+  },
+  twin: {
+    name: "Twindragon",
+    axiom: "FX+FX+",
+    rules: { X: "X+YF", Y: "FX-Y" },
+    angle: 90,
+    draw: "F",
+    maxGen: 15,
+    blurb: "Two Heighway dragons joined back-to-back. Tiles the plane."
+  },
+  ter: {
+    name: "Terdragon",
+    axiom: "F",
+    rules: { F: "F+F-F" },
+    angle: 120,
+    draw: "F",
+    maxGen: 11,
+    blurb: "Three-fold dragon. Z-shaped replacement, 120°."
+  },
+  terAlt: {
+    name: "Terdragon (alt fold)",
+    axiom: "F",
+    rules: { F: "F-F+F" },
+    angle: 120,
+    draw: "F",
+    maxGen: 11,
+    blurb: "Opposite trisect fold of the terdragon."
+  },
+  levy: {
+    name: "Lévy C / Lévy dragon",
+    axiom: "F",
+    rules: { F: "+F--F+" },
+    angle: 45,
+    draw: "F",
+    maxGen: 14,
+    blurb: "The C-curve cousin. Sometimes called a Lévy dragon."
+  },
+  fg: {
+    name: "Paperfold FG",
+    axiom: "F",
+    rules: { F: "F+G", G: "F-G" },
+    angle: 90,
+    draw: "FG",
+    maxGen: 16,
+    blurb: "Same Heighway family via two stroke letters."
+  },
+  goldenish: {
+    name: "Acute wyrm",
+    axiom: "FX",
+    rules: { X: "X+YF+", Y: "-FX-Y" },
+    angle: 60,
+    draw: "F",
+    maxGen: 15,
+    blurb: "Heighway grammar at 60°. Tight, leafy mutant."
+  },
+  obtuse: {
+    name: "Obtuse wyrm",
+    axiom: "FX",
+    rules: { X: "X+YF+", Y: "-FX-Y" },
+    angle: 135,
+    draw: "F",
+    maxGen: 14,
+    blurb: "Wide-angle Heighway. Looser coils."
+  },
+  unicorn: {
+    name: "Unicorn-ish",
+    axiom: "F",
+    rules: { F: "F+F-F-F+F" },
+    angle: 90,
+    draw: "F",
+    maxGen: 8,
+    blurb: "Heavier rewrite. Horned silhouette at mid gens."
+  }
+};
+
+const $ = (id) => document.getElementById(id);
+const canvas = $("c");
+const ctx = canvas.getContext("2d");
+
+const state = {
+  species: "heighway",
+  gen: 8,
+  angle: 90,
+  palette: "ember",
+  thick: 1.6,
+  glow: 6,
+  mirror: 1,
+  points: [],
+  view: { x: 0, y: 0, scale: 1 },
+  dragging: false,
+  last: { x: 0, y: 0 },
+  anim: null,
+  drawn: 0,
+  score: Number(localStorage.getItem("df_score") || 0),
+  best: Number(localStorage.getItem("df_best") || 0)
+};
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._id);
+  toast._id = setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+function expandL(axiom, rules, n) {
+  let s = axiom;
+  for (let i = 0; i < n; i++) {
+    let next = "";
+    for (const ch of s) next += rules[ch] || ch;
+    s = next;
+    if (s.length > 2_000_000) break;
+  }
+  return s;
+}
+
+function turtle(str, drawSet, angleDeg, mirror) {
+  const pts = [{ x: 0, y: 0 }];
+  let x = 0, y = 0, dir = 0;
+  const rad = (angleDeg * Math.PI) / 180;
+  for (const ch of str) {
+    if (drawSet.includes(ch)) {
+      x += Math.cos(dir);
+      y += Math.sin(dir);
+      pts.push({ x, y });
+    } else if (ch === "+") {
+      dir += rad * mirror;
+    } else if (ch === "-") {
+      dir -= rad * mirror;
+    }
+  }
+  return pts;
+}
+
+function bounds(pts) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { minX, minY, maxX, maxY, w: maxX - minX || 1, h: maxY - minY || 1 };
+}
+
+function rebuild(fit = true) {
+  const spec = SPECIES[state.species];
+  const raw = expandL(spec.axiom, spec.rules, state.gen);
+  state.points = turtle(raw, spec.draw, state.angle, state.mirror);
+  $("segStat").textContent = (state.points.length - 1).toLocaleString();
+  $("hud").textContent = `gen ${state.gen} · ${spec.name} · ${state.angle}°`;
+  if (fit) fitView();
+  state.drawn = state.points.length;
+  paint();
+}
+
+function fitView() {
+  const b = bounds(state.points);
+  const pad = 48;
+  const W = canvas.width, H = canvas.height;
+  const sx = (W - pad * 2) / b.w;
+  const sy = (H - pad * 2) / b.h;
+  state.view.scale = Math.min(sx, sy);
+  state.view.x = pad - b.minX * state.view.scale + (W - pad * 2 - b.w * state.view.scale) / 2;
+  state.view.y = pad - b.minY * state.view.scale + (H - pad * 2 - b.h * state.view.scale) / 2;
+}
+
+function colorAt(i, n) {
+  const t = n <= 1 ? 0 : i / (n - 1);
+  switch (state.palette) {
+    case "ember": {
+      const h = 18 + t * 28;
+      return `hsl(${h} 92% ${48 + 18 * Math.sin(t * Math.PI)}%)`;
+    }
+    case "gold":
+      return `hsl(${38 + t * 16} 88% ${52 + 10 * Math.sin(t * 6)}%)`;
+    case "rainbow":
+      return `hsl(${(t * 360 + 10) % 360} 78% 58%)`;
+    case "ice":
+      return `hsl(${190 + t * 40} 70% ${58 + 8 * Math.sin(t * 8)}%)`;
+    case "void":
+      return `hsl(${270 + t * 30} 40% ${70 - t * 30}%)`;
+    case "generation": {
+      const bands = Math.max(1, state.gen);
+      const band = Math.floor(t * bands);
+      return `hsl(${(band * 47) % 360} 75% 58%)`;
+    }
+    default:
+      return "#ff6a2a";
+  }
+}
+
+function paint(upto) {
+  const W = canvas.width, H = canvas.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#0b0706";
+  ctx.fillRect(0, 0, W, H);
+
+  const g = ctx.createRadialGradient(W * 0.5, H * 0.55, 40, W * 0.5, H * 0.5, Math.max(W, H) * 0.7);
+  g.addColorStop(0, "#1a0c08");
+  g.addColorStop(1, "#0b0706");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  const pts = state.points;
+  const last = upto == null ? pts.length : Math.min(upto, pts.length);
+  if (last < 2) return;
+
+  ctx.save();
+  ctx.translate(state.view.x, state.view.y);
+  ctx.scale(state.view.scale, state.view.scale);
+
+  const lw = state.thick / Math.max(state.view.scale, 0.2);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  if (state.glow > 0) {
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = lw * 2.4;
+    ctx.strokeStyle = colorAt(0, last);
+    ctx.globalAlpha = Math.min(0.18, state.glow / 80);
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < last; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  const chunk = Math.max(8, Math.floor(last / 400));
+  ctx.lineWidth = lw;
+  for (let i = 1; i < last; i += chunk) {
+    const end = Math.min(last - 1, i + chunk);
+    ctx.strokeStyle = colorAt(i, pts.length);
+    ctx.beginPath();
+    ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+    for (let j = i; j <= end; j++) ctx.lineTo(pts[j].x, pts[j].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function resize() {
+  const main = canvas.parentElement;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.floor(main.clientWidth * dpr);
+  canvas.height = Math.floor(main.clientHeight * dpr);
+  fitView();
+  paint();
+}
+
+function stopAnim() {
+  if (state.anim) cancelAnimationFrame(state.anim);
+  state.anim = null;
+}
+
+function hatch() {
+  stopAnim();
+  const total = state.points.length;
+  if (total < 2) return;
+  let i = 2;
+  const step = Math.max(1, Math.floor(total / 180));
+  const tick = () => {
+    paint(i);
+    i += step;
+    if (i < total) state.anim = requestAnimationFrame(tick);
+    else {
+      paint();
+      award(state.gen);
+    }
+  };
+  tick();
+}
+
+function award(gen) {
+  const gained = Math.round(Math.pow(2, Math.max(0, gen - 3)));
+  state.score += gained;
+  if (gen > state.best) state.best = gen;
+  localStorage.setItem("df_score", String(state.score));
+  localStorage.setItem("df_best", String(state.best));
+  $("scoreStat").textContent = state.score.toLocaleString();
+  $("bestStat").textContent = String(state.best);
+  if (gained > 1) toast(`+${gained} forge · gen ${gen} sealed`);
+}
+
+function populate() {
+  const sel = $("species");
+  for (const [id, s] of Object.entries(SPECIES)) {
+    const o = document.createElement("option");
+    o.value = id;
+    o.textContent = s.name;
+    sel.appendChild(o);
+  }
+  $("scoreStat").textContent = state.score.toLocaleString();
+  $("bestStat").textContent = String(state.best);
+}
+
+function applySpecies() {
+  const spec = SPECIES[state.species];
+  $("angle").value = spec.angle;
+  state.angle = spec.angle;
+  $("angleLabel").textContent = spec.angle + "°";
+  $("gen").max = spec.maxGen;
+  if (state.gen > spec.maxGen) {
+    state.gen = spec.maxGen;
+    $("gen").value = state.gen;
+    $("genLabel").textContent = state.gen;
+  }
+  toast(spec.blurb);
+}
+
+$("species").addEventListener("change", (e) => {
+  state.species = e.target.value;
+  applySpecies();
+  rebuild(true);
+});
+$("gen").addEventListener("input", (e) => {
+  state.gen = Number(e.target.value);
+  $("genLabel").textContent = state.gen;
+  rebuild(true);
+});
+$("angle").addEventListener("input", (e) => {
+  state.angle = Number(e.target.value);
+  $("angleLabel").textContent = state.angle + "°";
+  rebuild(true);
+});
+$("palette").addEventListener("change", (e) => {
+  state.palette = e.target.value;
+  paint();
+});
+$("thick").addEventListener("input", (e) => {
+  state.thick = Number(e.target.value);
+  paint();
+});
+$("glow").addEventListener("input", (e) => {
+  state.glow = Number(e.target.value);
+  paint();
+});
+$("foldBtn").addEventListener("click", () => {
+  const max = Number($("gen").max);
+  if (state.gen >= max) { toast("This wyrm cannot fold further"); return; }
+  state.gen += 1;
+  $("gen").value = state.gen;
+  $("genLabel").textContent = state.gen;
+  rebuild(true);
+  award(state.gen);
+});
+$("unfoldBtn").addEventListener("click", () => {
+  if (state.gen <= 0) return;
+  state.gen -= 1;
+  $("gen").value = state.gen;
+  $("genLabel").textContent = state.gen;
+  rebuild(true);
+});
+$("hatchBtn").addEventListener("click", () => {
+  rebuild(true);
+  hatch();
+});
+$("resetView").addEventListener("click", () => { fitView(); paint(); });
+$("mirrorBtn").addEventListener("click", () => {
+  state.mirror *= -1;
+  rebuild(true);
+  toast(state.mirror === 1 ? "Right-handed coil" : "Left-handed coil");
+});
+$("saveBtn").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.download = `dragon-${state.species}-g${state.gen}.png`;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+});
+
+canvas.addEventListener("pointerdown", (e) => {
+  state.dragging = true;
+  canvas.classList.add("dragging");
+  state.last.x = e.clientX;
+  state.last.y = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointerup", () => {
+  state.dragging = false;
+  canvas.classList.remove("dragging");
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!state.dragging) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  state.view.x += (e.clientX - state.last.x) * dpr;
+  state.view.y += (e.clientY - state.last.y) * dpr;
+  state.last.x = e.clientX;
+  state.last.y = e.clientY;
+  paint();
+});
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * dpr;
+  const my = (e.clientY - rect.top) * dpr;
+  const wx = (mx - state.view.x) / state.view.scale;
+  const wy = (my - state.view.y) / state.view.scale;
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  state.view.scale = Math.min(400, Math.max(0.05, state.view.scale * factor));
+  state.view.x = mx - wx * state.view.scale;
+  state.view.y = my - wy * state.view.scale;
+  paint();
+}, { passive: false });
+
+window.addEventListener("resize", resize);
+window.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select, textarea")) return;
+  if (e.key === "=" || e.key === "+" || e.key === "f") $("foldBtn").click();
+  if (e.key === "-" || e.key === "u") $("unfoldBtn").click();
+  if (e.key === " ") { e.preventDefault(); $("hatchBtn").click(); }
+  if (e.key === "r") $("resetView").click();
+  if (e.key === "m") $("mirrorBtn").click();
+});
+
+populate();
+applySpecies();
+resize();
+rebuild(true);
+</script>
+</body>
+</html>
